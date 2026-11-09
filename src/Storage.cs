@@ -44,6 +44,7 @@ namespace WordAss
         private readonly string wordbookPath;
         private readonly string apiPath;
         private readonly string legacyKeyPath;
+        private readonly string appearancePath;
 
         public LocalStore(string directory)
         {
@@ -51,6 +52,19 @@ namespace WordAss
             wordbookPath = Path.Combine(directory, "wordbook.xml");
             apiPath = Path.Combine(directory, "api-settings.dat");
             legacyKeyPath = Path.Combine(directory, "deepseek.key");
+            appearancePath = Path.Combine(directory, "appearance.txt");
+        }
+
+        public Appearance ReadAppearance()
+        {
+            try { return File.ReadAllText(appearancePath).Trim() == "old-book" ? Appearance.OldBook : Appearance.Modern; }
+            catch (FileNotFoundException) { return Appearance.Modern; }
+        }
+
+        public void SaveAppearance(Appearance appearance)
+        {
+            byte[] data = Encoding.UTF8.GetBytes(appearance == Appearance.OldBook ? "old-book" : "modern");
+            ReplaceFile(appearancePath, stream => stream.Write(data, 0, data.Length));
         }
 
         public ApiSettings ReadApiSettings()

@@ -18,15 +18,17 @@ namespace WordAss
         public static readonly Geometry Chevron = Shape("M7,10 L12,15 L17,10");
         public static readonly Geometry Key = Shape("M13,11 A4.5,4.5 0 1 1 18,16 L16,18 H13 V21 H9 V18 L13,14 Z M17,10 H17.1");
 
-        public static Viewbox Draw(Geometry geometry, Brush brush, double size = 16)
+        public static Viewbox Draw(Geometry geometry, ThemeKey tone, double size = 16)
         {
             var canvas = new Canvas { Width = 24, Height = 24, IsHitTestVisible = false };
-            canvas.Children.Add(new Path
+            var path = new Path
             {
-                Data = geometry, Stroke = brush, StrokeThickness = 1.8,
+                Data = geometry, StrokeThickness = 1.8,
                 StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
                 StrokeLineJoin = PenLineJoin.Round
-            });
+            };
+            path.SetResourceReference(Path.StrokeProperty, tone);
+            canvas.Children.Add(path);
             return new Viewbox
             {
                 Width = size, Height = size, Child = canvas, IsHitTestVisible = false,

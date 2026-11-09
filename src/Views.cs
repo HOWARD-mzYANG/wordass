@@ -7,67 +7,60 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 
 namespace WordAss
 {
     internal static class Views
     {
-        public static readonly Brush Ink = ColorBrush(25, 34, 55);
-        public static readonly Brush Muted = ColorBrush(82, 94, 118);
-        public static readonly Brush Accent = ColorBrush(68, 66, 201);
-        public static readonly Brush AccentLine = ColorBrush(159, 157, 231);
-        public static readonly Brush Danger = ColorBrush(164, 48, 65);
-        public static readonly Brush Tint = ColorBrush(237, 238, 255);
-        public static readonly Brush Surface = ColorBrush(245, 247, 252);
-        public static readonly Brush Line = ColorBrush(220, 225, 236);
         public static ImageSource WindowIcon { get; set; }
-        private static readonly Brush AccentHover = ColorBrush(55, 52, 178);
-        private static readonly Brush AccentPressed = ColorBrush(47, 43, 155);
-
-        private static Brush ColorBrush(byte red, byte green, byte blue)
-        {
-            var brush = new SolidColorBrush(Color.FromRgb(red, green, blue));
-            brush.Freeze();
-            return brush;
-        }
 
         public static void Style(Window window)
         {
-            window.FontFamily = new FontFamily("Segoe UI Variable, Microsoft YaHei UI, Segoe UI");
+            window.SetResourceReference(Control.FontFamilyProperty, ThemeKey.BodyFont);
             window.FontSize = 14;
-            window.Foreground = Ink;
-            window.Background = Surface;
+            window.SetResourceReference(Control.ForegroundProperty, ThemeKey.Ink);
+            window.SetResourceReference(Control.BackgroundProperty, ThemeKey.Canvas);
             window.Icon = WindowIcon;
             window.UseLayoutRounding = true;
         }
 
-        public static TextBlock Text(string text, double size = 14, Brush color = null, bool bold = false)
+        public static TextBlock Text(string text, double size = 14, ThemeKey color = ThemeKey.Ink, bool bold = false)
         {
-            return new TextBlock
+            var block = new TextBlock
             {
-                Text = text, FontSize = size, Foreground = color ?? Ink, TextWrapping = TextWrapping.Wrap,
+                Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap,
                 FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal
             };
+            block.SetResourceReference(TextBlock.ForegroundProperty, color);
+            return block;
+        }
+
+        public static TextBlock ReadingText(string text, double size, ThemeKey color = ThemeKey.Ink, bool bold = false)
+        {
+            var block = Text(text, size, color, bold);
+            block.SetResourceReference(TextBlock.FontFamilyProperty, ThemeKey.ReadingFont);
+            return block;
         }
 
         public static Button Button(string text, Action click, bool primary = false, Geometry icon = null)
         {
-            var template = RoundedContent(typeof(Button), 8, HorizontalAlignment.Center);
-            template.Triggers.Add(BackgroundOn(UIElement.IsMouseOverProperty, primary ? AccentHover : Surface));
-            template.Triggers.Add(BackgroundOn(ButtonBase.IsPressedProperty, primary ? AccentPressed : Tint));
+            var template = RoundedContent(typeof(Button), ThemeKey.ControlCorner, HorizontalAlignment.Center);
+            template.Triggers.Add(BackgroundOn(UIElement.IsMouseOverProperty, primary ? ThemeKey.AccentHover : ThemeKey.Surface));
+            template.Triggers.Add(BackgroundOn(ButtonBase.IsPressedProperty, primary ? ThemeKey.AccentPressed : ThemeKey.Tint));
             var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
             disabled.Setters.Add(new Setter(UIElement.OpacityProperty, 0.55, "Frame"));
             template.Triggers.Add(disabled);
             var button = new Button
             {
-                Content = icon == null ? (object)text : IconLabel(text, icon, primary ? Brushes.White : Ink),
+                Content = icon == null ? (object)text : IconLabel(text, icon, primary ? ThemeKey.OnAccent : ThemeKey.Ink),
                 Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0),
-                MinHeight = 34, Background = primary ? Accent : Brushes.White,
-                Foreground = primary ? Brushes.White : Ink, BorderBrush = primary ? Brushes.Transparent : Line,
+                MinHeight = 34, BorderBrush = Brushes.Transparent,
                 BorderThickness = new Thickness(1), FontWeight = FontWeights.SemiBold, Cursor = Cursors.Hand,
                 Template = template
             };
+            button.SetResourceReference(Control.BackgroundProperty, primary ? ThemeKey.Accent : ThemeKey.Paper);
+            button.SetResourceReference(Control.ForegroundProperty, primary ? ThemeKey.OnAccent : ThemeKey.Ink);
+            if (!primary) button.SetResourceReference(Control.BorderBrushProperty, ThemeKey.Line);
             AutomationProperties.SetName(button, text);
             if (click != null) button.Click += (sender, args) => click();
             return button;
@@ -75,7 +68,7 @@ namespace WordAss
 
         public static Button ToolButton(string label, Geometry icon, Action click)
         {
-            var button = new Button { Content = Icons.Draw(icon, Muted) };
+            var button = new Button { Content = Icons.Draw(icon, ThemeKey.Muted) };
             StyleTool(button, label);
             button.Click += (sender, args) => click();
             return button;
@@ -85,16 +78,16 @@ namespace WordAss
         {
             var button = new ToggleButton();
             StyleTool(button, "固定窗口");
-            button.Content = Icons.Draw(Icons.Pin, Muted);
+            button.Content = Icons.Draw(Icons.Pin, ThemeKey.Muted);
             button.Checked += (sender, args) =>
             {
-                button.Content = Icons.Draw(Icons.Pin, Accent);
+                button.Content = Icons.Draw(Icons.Pin, ThemeKey.Accent);
                 button.ToolTip = "取消固定";
                 AutomationProperties.SetName(button, "取消固定");
             };
             button.Unchecked += (sender, args) =>
             {
-                button.Content = Icons.Draw(Icons.Pin, Muted);
+                button.Content = Icons.Draw(Icons.Pin, ThemeKey.Muted);
                 button.ToolTip = "固定窗口";
                 AutomationProperties.SetName(button, "固定窗口");
             };
@@ -103,10 +96,10 @@ namespace WordAss
 
         private static void StyleTool(ButtonBase button, string label)
         {
-            var template = RoundedContent(button.GetType(), 7, HorizontalAlignment.Center);
-            template.Triggers.Add(BackgroundOn(UIElement.IsMouseOverProperty, Surface));
-            template.Triggers.Add(BackgroundOn(ButtonBase.IsPressedProperty, Tint));
-            if (button is ToggleButton) template.Triggers.Add(BackgroundOn(ToggleButton.IsCheckedProperty, Tint));
+            var template = RoundedContent(button.GetType(), ThemeKey.ToolCorner, HorizontalAlignment.Center);
+            template.Triggers.Add(BackgroundOn(UIElement.IsMouseOverProperty, ThemeKey.Surface));
+            template.Triggers.Add(BackgroundOn(ButtonBase.IsPressedProperty, ThemeKey.Tint));
+            if (button is ToggleButton) template.Triggers.Add(BackgroundOn(ToggleButton.IsCheckedProperty, ThemeKey.Tint));
             button.Template = template;
             button.Width = button.Height = 30;
             button.Background = Brushes.Transparent;
@@ -116,13 +109,13 @@ namespace WordAss
             AutomationProperties.SetName(button, label);
         }
 
-        public static StackPanel IconLabel(string text, Geometry icon, Brush brush, double size = 14)
+        public static StackPanel IconLabel(string text, Geometry icon, ThemeKey tone)
         {
             var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var image = Icons.Draw(icon, brush);
+            var image = Icons.Draw(icon, tone);
             image.Margin = new Thickness(0, 0, 6, 0);
             panel.Children.Add(image);
-            var label = Text(text, size, brush, true);
+            var label = Text(text, 14, tone, true);
             label.VerticalAlignment = VerticalAlignment.Center;
             panel.Children.Add(label);
             return panel;
@@ -130,19 +123,22 @@ namespace WordAss
 
         public static Border IconTile(Geometry icon)
         {
-            return new Border
+            var tile = new Border
             {
-                Width = 36, Height = 36, Background = Tint, CornerRadius = new CornerRadius(9),
-                HorizontalAlignment = HorizontalAlignment.Left, Child = Icons.Draw(icon, Accent, 20)
+                Width = 36, Height = 36,
+                HorizontalAlignment = HorizontalAlignment.Left, Child = Icons.Draw(icon, ThemeKey.Accent, 20)
             };
+            tile.SetResourceReference(Border.BackgroundProperty, ThemeKey.Tint);
+            tile.SetResourceReference(Border.CornerRadiusProperty, ThemeKey.InsetCorner);
+            return tile;
         }
 
         public static Style WordRowStyle()
         {
             var style = new Style(typeof(ListBoxItem));
-            var template = RoundedContent(typeof(ListBoxItem), 8, HorizontalAlignment.Stretch);
-            template.Triggers.Add(BackgroundOn(UIElement.IsMouseOverProperty, Surface));
-            template.Triggers.Add(BackgroundOn(ListBoxItem.IsSelectedProperty, Tint));
+            var template = RoundedContent(typeof(ListBoxItem), ThemeKey.ControlCorner, HorizontalAlignment.Stretch);
+            template.Triggers.Add(BackgroundOn(UIElement.IsMouseOverProperty, ThemeKey.Surface));
+            template.Triggers.Add(BackgroundOn(ListBoxItem.IsSelectedProperty, ThemeKey.Tint));
             style.Setters.Add(new Setter(Control.TemplateProperty, template));
             style.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
             style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(12, 8, 10, 8)));
@@ -150,7 +146,7 @@ namespace WordAss
             return style;
         }
 
-        private static ControlTemplate RoundedContent(Type target, double radius, HorizontalAlignment alignment)
+        private static ControlTemplate RoundedContent(Type target, ThemeKey radius, HorizontalAlignment alignment)
         {
             var border = TemplateBorder(radius);
             border.SetBinding(Border.PaddingProperty, FromControl("Padding"));
@@ -164,25 +160,36 @@ namespace WordAss
 
         public static PasswordBox PasswordInput()
         {
-            return new PasswordBox
+            var input = new PasswordBox
             {
-                Template = InputTemplate(typeof(PasswordBox)), Background = Brushes.White, Foreground = Ink, BorderBrush = Line,
+                Template = InputTemplate(typeof(PasswordBox)),
                 BorderThickness = new Thickness(1), Padding = new Thickness(11, 4, 11, 4), MinHeight = 36, MaxLength = 512
             };
+            PaperControl(input);
+            return input;
         }
 
         public static TextBox TextInput(string value)
         {
-            return new TextBox
+            var input = new TextBox
             {
-                Text = value, Template = InputTemplate(typeof(TextBox)), Background = Brushes.White, Foreground = Ink, BorderBrush = Line,
+                Text = value, Template = InputTemplate(typeof(TextBox)),
                 BorderThickness = new Thickness(1), Padding = new Thickness(11, 4, 11, 4), MinHeight = 36
             };
+            PaperControl(input);
+            return input;
+        }
+
+        private static void PaperControl(Control control)
+        {
+            control.SetResourceReference(Control.BackgroundProperty, ThemeKey.Paper);
+            control.SetResourceReference(Control.ForegroundProperty, ThemeKey.Ink);
+            control.SetResourceReference(Control.BorderBrushProperty, ThemeKey.Line);
         }
 
         private static ControlTemplate InputTemplate(Type target)
         {
-            var border = TemplateBorder(9);
+            var border = TemplateBorder(ThemeKey.InsetCorner);
             var scroll = new FrameworkElementFactory(typeof(ScrollViewer), "PART_ContentHost");
             scroll.SetBinding(FrameworkElement.MarginProperty, FromControl("Padding"));
             scroll.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
@@ -190,7 +197,7 @@ namespace WordAss
             border.AppendChild(scroll);
             var template = new ControlTemplate(target) { VisualTree = border };
             var focused = new Trigger { Property = UIElement.IsKeyboardFocusedProperty, Value = true };
-            focused.Setters.Add(new Setter(Border.BorderBrushProperty, Accent, "Frame"));
+            focused.Setters.Add(new Setter(Border.BorderBrushProperty, new DynamicResourceExtension(ThemeKey.Accent), "Frame"));
             template.Triggers.Add(focused);
             return template;
         }
@@ -198,11 +205,11 @@ namespace WordAss
         public static ToggleButton Switch(string label)
         {
             var track = new FrameworkElementFactory(typeof(Border), "Track");
-            track.SetValue(Border.BackgroundProperty, Line);
+            track.SetResourceReference(Border.BackgroundProperty, ThemeKey.Line);
             track.SetValue(Border.CornerRadiusProperty, new CornerRadius(11));
             track.SetValue(Border.PaddingProperty, new Thickness(3));
             var knob = new FrameworkElementFactory(typeof(Border), "Knob");
-            knob.SetValue(Border.BackgroundProperty, Brushes.White);
+            knob.SetResourceReference(Border.BackgroundProperty, ThemeKey.OnAccent);
             knob.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
             knob.SetValue(FrameworkElement.WidthProperty, 16.0);
             knob.SetValue(FrameworkElement.HeightProperty, 16.0);
@@ -210,7 +217,7 @@ namespace WordAss
             track.AppendChild(knob);
             var template = new ControlTemplate(typeof(ToggleButton)) { VisualTree = track };
             var on = new Trigger { Property = ToggleButton.IsCheckedProperty, Value = true };
-            on.Setters.Add(new Setter(Border.BackgroundProperty, Accent, "Track"));
+            on.Setters.Add(new Setter(Border.BackgroundProperty, new DynamicResourceExtension(ThemeKey.Accent), "Track"));
             on.Setters.Add(new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right, "Knob"));
             template.Triggers.Add(on);
             var toggle = new ToggleButton { Width = 40, Height = 22, Template = template, Cursor = Cursors.Hand };
@@ -220,23 +227,23 @@ namespace WordAss
 
         public static RadioButton Choice(string text, bool selected)
         {
-            var template = RoundedContent(typeof(RadioButton), 7, HorizontalAlignment.Center);
-            template.Triggers.Add(BackgroundOn(UIElement.IsMouseOverProperty, Surface));
-            template.Triggers.Add(BackgroundOn(ToggleButton.IsCheckedProperty, Tint));
+            var template = RoundedContent(typeof(RadioButton), ThemeKey.ToolCorner, HorizontalAlignment.Center);
+            template.Triggers.Add(BackgroundOn(UIElement.IsMouseOverProperty, ThemeKey.Surface));
+            template.Triggers.Add(BackgroundOn(ToggleButton.IsCheckedProperty, ThemeKey.Tint));
             var choice = new RadioButton
             {
-                Content = text, IsChecked = selected, MinHeight = 34, Background = Brushes.White,
-                Foreground = Ink, BorderBrush = Line, BorderThickness = new Thickness(1),
+                Content = text, IsChecked = selected, MinHeight = 34, BorderThickness = new Thickness(1),
                 Padding = new Thickness(6, 4, 6, 4), Cursor = Cursors.Hand, Template = template
             };
+            PaperControl(choice);
             AutomationProperties.SetName(choice, text);
             return choice;
         }
 
-        private static FrameworkElementFactory TemplateBorder(double radius)
+        private static FrameworkElementFactory TemplateBorder(ThemeKey radius)
         {
             var border = new FrameworkElementFactory(typeof(Border), "Frame");
-            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(radius));
+            border.SetResourceReference(Border.CornerRadiusProperty, radius);
             border.SetBinding(Border.BackgroundProperty, FromControl("Background"));
             border.SetBinding(Border.BorderBrushProperty, FromControl("BorderBrush"));
             border.SetBinding(Border.BorderThicknessProperty, FromControl("BorderThickness"));
@@ -248,30 +255,49 @@ namespace WordAss
             return new Binding(property) { RelativeSource = RelativeSource.TemplatedParent };
         }
 
-        private static Trigger BackgroundOn(DependencyProperty property, Brush brush)
+        private static Trigger BackgroundOn(DependencyProperty property, ThemeKey tone)
         {
             var trigger = new Trigger { Property = property, Value = true };
-            trigger.Setters.Add(new Setter(Border.BackgroundProperty, brush, "Frame"));
+            trigger.Setters.Add(new Setter(Border.BackgroundProperty, new DynamicResourceExtension(tone), "Frame"));
             return trigger;
         }
 
-        public static Border Card(double padding, double radius = 14)
+        public static Border Card(double padding, ThemeKey radius = ThemeKey.CardCorner)
         {
-            return new Border
+            var card = new Border
             {
-                Background = Brushes.White, BorderBrush = Line, BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(radius), Padding = new Thickness(padding)
+                BorderThickness = new Thickness(1), Padding = new Thickness(padding)
             };
+            card.SetResourceReference(Border.BackgroundProperty, ThemeKey.Paper);
+            card.SetResourceReference(Border.BorderBrushProperty, ThemeKey.Line);
+            card.SetResourceReference(Border.CornerRadiusProperty, radius);
+            return card;
         }
 
         public static Border Badge(string text)
         {
-            return new Border
+            var badge = new Border
             {
-                Background = Tint, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4),
+                Padding = new Thickness(8, 4, 8, 4),
                 HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center,
-                Child = Text(text, 12, Accent, true)
+                Child = Text(text, 12, ThemeKey.Accent, true)
             };
+            badge.SetResourceReference(Border.BackgroundProperty, ThemeKey.Tint);
+            badge.SetResourceReference(Border.CornerRadiusProperty, ThemeKey.BadgeCorner);
+            return badge;
+        }
+
+        public static FrameworkElement FolioRule()
+        {
+            var lines = new StackPanel { Margin = new Thickness(0, 7, 0, 2) };
+            var top = new Border { Height = 1 };
+            top.SetResourceReference(Border.BackgroundProperty, ThemeKey.AccentLine);
+            lines.Children.Add(top);
+            var bottom = new Border { Height = 1, Margin = new Thickness(0, 2, 0, 0) };
+            bottom.SetResourceReference(Border.BackgroundProperty, ThemeKey.Line);
+            lines.Children.Add(bottom);
+            lines.SetResourceReference(UIElement.VisibilityProperty, ThemeKey.FolioRule);
+            return lines;
         }
 
         public static StackPanel EntryDetails(Entry entry, Action<string> speak)
@@ -283,11 +309,12 @@ namespace WordAss
             audio.VerticalAlignment = VerticalAlignment.Top;
             DockPanel.SetDock(audio, Dock.Right);
             title.Children.Add(audio);
-            title.Children.Add(Text(entry.Word, 26, bold: true));
+            title.Children.Add(ReadingText(entry.Word, 26, bold: true));
             panel.Children.Add(title);
-            var summary = Text(entry.Summary, 15, Muted);
+            var summary = Text(entry.Summary, 15, ThemeKey.Muted);
             summary.Margin = new Thickness(0, 3, 0, 0);
             panel.Children.Add(summary);
+            panel.Children.Add(FolioRule());
             foreach (var sense in entry.Senses)
             {
                 var content = new StackPanel();
@@ -295,13 +322,16 @@ namespace WordAss
                 var definition = Text(sense.Definition, 14, bold: true);
                 definition.Margin = new Thickness(0, 6, 0, 5);
                 content.Children.Add(definition);
-                content.Children.Add(Text(sense.Example));
-                content.Children.Add(Text(sense.ExampleTranslation, 13, Muted));
-                panel.Children.Add(new Border
+                content.Children.Add(ReadingText(sense.Example, 14));
+                content.Children.Add(Text(sense.ExampleTranslation, 13, ThemeKey.Muted));
+                var note = new Border
                 {
-                    Background = Surface, CornerRadius = new CornerRadius(9), Padding = new Thickness(11),
+                    Padding = new Thickness(11),
                     Margin = new Thickness(0, 9, 0, 0), Child = content
-                });
+                };
+                note.SetResourceReference(Border.BackgroundProperty, ThemeKey.Surface);
+                note.SetResourceReference(Border.CornerRadiusProperty, ThemeKey.InsetCorner);
+                panel.Children.Add(note);
             }
             return panel;
         }
@@ -319,7 +349,7 @@ namespace WordAss
         private readonly Grid resultSurface = new Grid { Margin = new Thickness(9) };
         private readonly Border card;
         private readonly ToggleButton pin = Views.PinButton();
-        private readonly TextBlock headerLabel = Views.Text("", 12, Views.Muted, true);
+        private readonly TextBlock headerLabel = Views.Text("", 12, ThemeKey.Muted, true);
         private readonly DockPanel header;
         private bool moved;
 
@@ -338,11 +368,11 @@ namespace WordAss
             AllowsTransparency = true;
             Background = Brushes.Transparent;
             SizeToContent = SizeToContent.WidthAndHeight;
-            var shadow = Views.Card(0, 12);
+            var shadow = Views.Card(0, ThemeKey.PopupCorner);
             shadow.IsHitTestVisible = false;
-            shadow.Effect = new DropShadowEffect { Color = Color.FromRgb(28, 38, 65), BlurRadius = 13, ShadowDepth = 2, Opacity = 0.22 };
+            shadow.SetResourceReference(UIElement.EffectProperty, ThemeKey.PopupShadow);
             resultSurface.Children.Add(shadow);
-            card = Views.Card(0, 12);
+            card = Views.Card(0, ThemeKey.PopupCorner);
             card.Child = panel;
             resultSurface.Children.Add(card);
             Content = resultSurface;
@@ -377,7 +407,7 @@ namespace WordAss
 
             var grip = new DockPanel { LastChildFill = true, Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
             grip.ToolTip = "拖动此处移动窗口";
-            var mark = Icons.Draw(Icons.Grip, Views.Muted, 15);
+            var mark = Icons.Draw(Icons.Grip, ThemeKey.Muted, 15);
             mark.Margin = new Thickness(0, 0, 6, 0);
             grip.Children.Add(mark);
             headerLabel.VerticalAlignment = VerticalAlignment.Center;
@@ -425,16 +455,16 @@ namespace WordAss
             translate.MinWidth = 46;
             translate.MinHeight = 26;
             translate.FontSize = 13;
-            translate.Background = Views.Tint;
-            translate.BorderBrush = Views.AccentLine;
-            translate.Foreground = Views.Accent;
+            translate.SetResourceReference(Control.BackgroundProperty, ThemeKey.Tint);
+            translate.SetResourceReference(Control.BorderBrushProperty, ThemeKey.AccentLine);
+            translate.SetResourceReference(Control.ForegroundProperty, ThemeKey.Accent);
             Content = translate;
         }
 
         public void Status(string message, Action retry = null, string button = "重试")
         {
             ResetResult("查译");
-            panel.Children.Add(Views.Text(message, color: Views.Muted));
+            panel.Children.Add(Views.Text(message, color: ThemeKey.Muted));
             if (retry != null)
             {
                 var action = Views.Button(button, retry);
@@ -452,8 +482,9 @@ namespace WordAss
                 Text = translation, IsReadOnly = true, TextWrapping = TextWrapping.Wrap,
                 MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 BorderThickness = new Thickness(0), Background = Brushes.Transparent,
-                Foreground = Views.Ink, Padding = new Thickness(0)
+                Padding = new Thickness(0)
             };
+            box.SetResourceReference(Control.ForegroundProperty, ThemeKey.Ink);
             panel.Children.Add(box);
         }
 
@@ -462,7 +493,7 @@ namespace WordAss
             ResetResult("词条", true);
             panel.Children.Add(Views.Scroll(Views.EntryDetails(entry, speak), 290));
             var footer = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-            var status = Views.Text("", 13, Views.Accent);
+            var status = Views.Text("", 13, ThemeKey.Accent);
             status.VerticalAlignment = VerticalAlignment.Center;
             footer.Children.Add(Views.Button("加入单词本", () => status.Text = save(), true, Icons.Bookmark));
             footer.Children.Add(status);
@@ -488,7 +519,7 @@ namespace WordAss
         private readonly ListBox list = new ListBox { BorderThickness = new Thickness(0), Background = Brushes.Transparent };
         private readonly Border details = Views.Card(16);
         private readonly Border count = Views.Badge("");
-        private readonly TextBlock empty = Views.Text("", 14, Views.Muted);
+        private readonly TextBlock empty = Views.Text("", 14, ThemeKey.Muted);
 
         public WordbookWindow(LocalStore store, Action<string> speak)
         {
@@ -511,12 +542,16 @@ namespace WordAss
             var bookIcon = Views.IconTile(Icons.Book);
             bookIcon.Margin = new Thickness(0, 0, 10, 0);
             heading.Children.Add(bookIcon);
-            var title = Views.Text("单词本", 27, bold: true);
+            var title = Views.ReadingText("单词本", 27, bold: true);
             title.VerticalAlignment = VerticalAlignment.Center;
             heading.Children.Add(title);
             header.Children.Add(heading);
             DockPanel.SetDock(header, Dock.Top);
             layout.Children.Add(header);
+            var folio = Views.FolioRule();
+            folio.Margin = new Thickness(0, -5, 0, 11);
+            DockPanel.SetDock(folio, Dock.Top);
+            layout.Children.Add(folio);
             DockPanel.SetDock(details, Dock.Bottom);
             details.Margin = new Thickness(0, 10, 0, 0);
             layout.Children.Add(details);
@@ -531,7 +566,8 @@ namespace WordAss
             columns.Margin = new Thickness(12, 9, 10, 7);
             DockPanel.SetDock(columns, Dock.Top);
             table.Children.Add(columns);
-            var rule = new Border { Height = 1, Background = Views.Line, Margin = new Thickness(10, 0, 10, 4) };
+            var rule = new Border { Height = 1, Margin = new Thickness(10, 0, 10, 4) };
+            rule.SetResourceReference(Border.BackgroundProperty, ThemeKey.Line);
             DockPanel.SetDock(rule, Dock.Top);
             table.Children.Add(rule);
             var area = new Grid();
@@ -585,15 +621,15 @@ namespace WordAss
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
-            var word = Views.Text(english, header ? 12 : 15, header ? Views.Muted : Views.Ink, true);
+            var word = header ? Views.Text(english, 12, ThemeKey.Muted, true) : Views.ReadingText(english, 15, bold: true);
             word.Margin = new Thickness(0, 0, 10, 0);
             row.Children.Add(word);
-            var summary = Views.Text(chinese, header ? 12 : 14, Views.Muted, header);
+            var summary = Views.Text(chinese, header ? 12 : 14, ThemeKey.Muted, header);
             Grid.SetColumn(summary, 1);
             row.Children.Add(summary);
             if (!header)
             {
-                var arrow = Icons.Draw(Icons.Chevron, Views.Muted, 13);
+                var arrow = Icons.Draw(Icons.Chevron, ThemeKey.Muted, 13);
                 Grid.SetColumn(arrow, 2);
                 row.Children.Add(arrow);
             }
@@ -619,7 +655,7 @@ namespace WordAss
             var remove = Views.ToolButton("从单词本删除", Icons.Trash, () =>
             {
                 actions.Children.Clear();
-                var prompt = Views.Text("删除这个词条？", 12, Views.Muted);
+                var prompt = Views.Text("删除这个词条？", 12, ThemeKey.Muted);
                 prompt.VerticalAlignment = VerticalAlignment.Center;
                 prompt.Margin = new Thickness(0, 0, 8, 0);
                 actions.Children.Add(prompt);
@@ -638,7 +674,7 @@ namespace WordAss
                     }
                 });
                 confirm.Margin = new Thickness(0);
-                confirm.Foreground = Views.Danger;
+                confirm.SetResourceReference(Control.ForegroundProperty, ThemeKey.Danger);
                 actions.Children.Add(confirm);
                 confirm.Focus();
             });

@@ -26,10 +26,14 @@ namespace WordAss
             var icon = Views.IconTile(Icons.Key);
             icon.Margin = new Thickness(0, 0, 9, 0);
             heading.Children.Add(icon);
-            var title = Views.Text("设置", 26, bold: true);
+            var title = Views.ReadingText("设置", 26, bold: true);
             title.VerticalAlignment = VerticalAlignment.Center;
             heading.Children.Add(title);
             body.Children.Add(heading);
+
+            var appearanceCard = AppearanceCard(store);
+            appearanceCard.Margin = new Thickness(0, 0, 0, 10);
+            body.Children.Add(appearanceCard);
 
             var startupCard = StartupCard(startup);
             startupCard.Margin = new Thickness(0, 0, 0, 10);
@@ -37,6 +41,46 @@ namespace WordAss
             body.Children.Add(ApiCard(current, store, api, saved));
             Content = Views.Scroll(body);
             PreviewKeyDown += (sender, args) => { if (args.Key == Key.Escape) Close(); };
+        }
+
+        private static Border AppearanceCard(LocalStore store)
+        {
+            var card = Views.Card(14);
+            var layout = new StackPanel();
+            layout.Children.Add(Views.Text("界面风格", 15, bold: true));
+            var choices = new UniformGrid { Rows = 1, Margin = new Thickness(0, 8, 0, 0) };
+            var modern = Views.Choice("现代", Theme.Current == Appearance.Modern);
+            modern.Margin = new Thickness(0, 0, 6, 0);
+            var oldBook = Views.Choice("旧书", Theme.Current == Appearance.OldBook);
+            choices.Children.Add(modern);
+            choices.Children.Add(oldBook);
+            layout.Children.Add(choices);
+            var status = Views.Text("", 12, ThemeKey.Danger);
+            status.Margin = new Thickness(0, 6, 0, 0);
+            status.Visibility = Visibility.Collapsed;
+            layout.Children.Add(status);
+
+            Action<Appearance> select = appearance =>
+            {
+                if (Theme.Current == appearance) return;
+                try
+                {
+                    store.SaveAppearance(appearance);
+                    Theme.Apply(appearance);
+                    status.Visibility = Visibility.Collapsed;
+                }
+                catch (Exception ex)
+                {
+                    if (!Program.IsLocalFileError(ex)) throw;
+                    (Theme.Current == Appearance.Modern ? modern : oldBook).IsChecked = true;
+                    status.Text = "无法保存界面风格，请检查本地目录权限。";
+                    status.Visibility = Visibility.Visible;
+                }
+            };
+            modern.Click += (sender, args) => select(Appearance.Modern);
+            oldBook.Click += (sender, args) => select(Appearance.OldBook);
+            card.Child = layout;
+            return card;
         }
 
         private static Border StartupCard(StartupRegistration startup)
@@ -49,7 +93,7 @@ namespace WordAss
             layout.Children.Add(toggle);
             var labels = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
             labels.Children.Add(Views.Text("开机启动", bold: true));
-            var status = Views.Text("登录 Windows 后在托盘运行", 12, Views.Muted);
+            var status = Views.Text("登录 Windows 后在托盘运行", 12, ThemeKey.Muted);
             labels.Children.Add(status);
             layout.Children.Add(labels);
             card.Child = layout;
@@ -84,7 +128,7 @@ namespace WordAss
             var card = Views.Card(14);
             var form = new StackPanel();
             form.Children.Add(Views.Text("词典与翻译 API", 17, bold: true));
-            var help = Views.Text("点击「翻译」时，选中文字会发送给所选 API。", 12, Views.Muted);
+            var help = Views.Text("点击「翻译」时，选中文字会发送给所选 API。", 12, ThemeKey.Muted);
             help.Margin = new Thickness(0, 4, 0, 8);
             form.Children.Add(help);
 
@@ -110,10 +154,11 @@ namespace WordAss
                 Content = "此服务无需 API Key", IsChecked = !deepSeek && string.IsNullOrEmpty(current.Key),
                 Margin = new Thickness(0, 9, 0, 1)
             };
+            noKey.SetResourceReference(Control.ForegroundProperty, ThemeKey.Ink);
             form.Children.Add(noKey);
             var input = Views.PasswordInput();
             var keyField = AddField(form, "API Key", input);
-            var status = Views.Text("", 12, Views.Muted);
+            var status = Views.Text("", 12, ThemeKey.Muted);
             status.Margin = new Thickness(0, 8, 0, 5);
             status.MinHeight = 17;
             form.Children.Add(status);

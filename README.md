@@ -33,6 +33,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 | **保留查询结果** | 拖动顶栏移动浮窗，点击图钉固定或取消固定。继续划词时，已固定的浮窗会留在屏幕上。 |
 | **复习词条** | 双击托盘图标打开单词本。列表显示英文和中文简释，点开查看详情，或用垃圾桶图标删除已掌握的词。 |
 | **开机启动** | 在托盘的 **设置** 中开启。下次登录 Windows 后，WordAss 会在托盘运行。 |
+| **切换风格** | 在托盘的 **设置 → 界面风格** 中选择 **现代** 或 **旧书**。选择立即生效，并在下次启动时沿用。 |
 
 部分应用无法直接读取选区。可以先复制文字，再用托盘里的 **查译剪贴板**。默认快捷键是 <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>D</kbd>，备用组合键会显示在托盘菜单中。
 
@@ -51,6 +52,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 | --- | --- |
 | `%LOCALAPPDATA%\WordAss\wordbook.xml` | 保存收藏词条，可离线查看。 |
 | `%LOCALAPPDATA%\WordAss\api-settings.dat` | 使用 Windows 当前用户加密保存的 API 配置和 Key。 |
+| `%LOCALAPPDATA%\WordAss\appearance.txt` | 保存界面风格偏好。 |
 
 ## 开源协议
 

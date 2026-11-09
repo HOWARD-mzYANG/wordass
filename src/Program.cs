@@ -75,6 +75,11 @@ namespace WordAss
                 Shutdown(1);
                 return;
             }
+            Appearance appearance = Appearance.Modern;
+            try { appearance = store.ReadAppearance(); }
+            catch (Exception ex) { if (!IsLocalFileError(ex)) throw; }
+            Theme.Apply(appearance);
+
             try { apiSettings = store.ReadApiSettings(); }
             catch (Exception ex) { if (!IsLocalFileError(ex)) throw; }
             try { startup.RefreshPath(); }
