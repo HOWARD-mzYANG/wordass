@@ -1,0 +1,4 @@
+/build/
+*.key
+api-settings.dat
+wordbook.xml
