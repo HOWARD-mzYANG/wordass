@@ -315,6 +315,7 @@ namespace WordAss
     {
         private readonly Point anchor;
         private readonly StackPanel panel = new StackPanel { Margin = new Thickness(14) };
+        private readonly Grid resultSurface = new Grid { Margin = new Thickness(9) };
         private readonly Border card;
         private readonly ToggleButton pin = Views.PinButton();
         private readonly TextBlock headerLabel = Views.Text("", 12, Views.Muted, true);
@@ -336,15 +337,14 @@ namespace WordAss
             AllowsTransparency = true;
             Background = Brushes.Transparent;
             SizeToContent = SizeToContent.WidthAndHeight;
-            var surface = new Grid { Margin = new Thickness(9) };
             var shadow = Views.Card(0, 12);
             shadow.IsHitTestVisible = false;
             shadow.Effect = new DropShadowEffect { Color = Color.FromRgb(28, 38, 65), BlurRadius = 13, ShadowDepth = 2, Opacity = 0.22 };
-            surface.Children.Add(shadow);
+            resultSurface.Children.Add(shadow);
             card = Views.Card(0, 12);
             card.Child = panel;
-            surface.Children.Add(card);
-            Content = surface;
+            resultSurface.Children.Add(card);
+            Content = resultSurface;
             header = CreateHeader();
             pin.Checked += NotifyPinChanged;
             pin.Unchecked += NotifyPinChanged;
@@ -358,8 +358,10 @@ namespace WordAss
         public bool Contains(Point point)
         {
             if (!IsVisible || Handle == IntPtr.Zero) return false;
-            var start = card.PointToScreen(new Point());
-            var end = card.PointToScreen(new Point(card.ActualWidth, card.ActualHeight));
+            var hitArea = Content == resultSurface ? card : (FrameworkElement)Content;
+            if (PresentationSource.FromVisual(hitArea) == null) return false;
+            var start = hitArea.PointToScreen(new Point());
+            var end = hitArea.PointToScreen(new Point(hitArea.ActualWidth, hitArea.ActualHeight));
             return new Rect(start, end).Contains(point);
         }
 
@@ -403,12 +405,16 @@ namespace WordAss
 
         public void Prompt(Action run)
         {
-            panel.Width = double.NaN;
-            panel.Margin = new Thickness(4);
-            panel.Children.Clear();
-            var translate = Views.Button("翻译", run, true, Icons.Translate);
+            var translate = Views.Button("翻译", run);
             translate.Margin = new Thickness(0);
-            panel.Children.Add(translate);
+            translate.HorizontalAlignment = HorizontalAlignment.Left;
+            translate.VerticalAlignment = VerticalAlignment.Top;
+            translate.Padding = new Thickness(8, 2, 8, 2);
+            translate.MinWidth = 44;
+            translate.MinHeight = 25;
+            translate.FontSize = 12;
+            translate.Foreground = Views.Muted;
+            Content = translate;
         }
 
         public void Status(string message, Action retry = null, string button = "重试")
@@ -457,6 +463,7 @@ namespace WordAss
             headerLabel.Text = title;
             pin.Visibility = canPin ? Visibility.Visible : Visibility.Collapsed;
             panel.Children.Add(header);
+            Content = resultSurface;
         }
     }
 

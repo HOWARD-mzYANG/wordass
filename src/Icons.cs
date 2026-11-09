@@ -8,7 +8,6 @@ namespace WordAss
     internal static class Icons
     {
         public static readonly Geometry Book = Shape("M12,6 C9,3 6,3 3,4 V18 C6,17 9,17 12,20 C15,17 18,17 21,18 V4 C18,3 15,3 12,6 Z M12,6 V20");
-        public static readonly Geometry Translate = Shape("M3,5 H13 M8,3 V5 M11,5 C10,10 7,13 3,15 M5,8 C6,11 8,13 11,15 M13,20 L17.5,10 L22,20 M15,17 H20");
         public static readonly Geometry Speaker = Shape("M3,9 H7 L12,5 V19 L7,15 H3 Z M16,9 C18,10.5 18,13.5 16,15 M19,6 C22.5,9 22.5,15 19,18");
         public static readonly Geometry Bookmark = Shape("M6,4 H18 V20 L12,16 L6,20 Z M9.5,10 H14.5 M12,7.5 V12.5");
         public static readonly Geometry Check = Shape("M5,12 L10,17 L19,7");
