@@ -16,6 +16,7 @@ namespace WordAss
         public static readonly Brush Ink = ColorBrush(25, 34, 55);
         public static readonly Brush Muted = ColorBrush(82, 94, 118);
         public static readonly Brush Accent = ColorBrush(68, 66, 201);
+        public static readonly Brush AccentLine = ColorBrush(159, 157, 231);
         public static readonly Brush Danger = ColorBrush(164, 48, 65);
         public static readonly Brush Tint = ColorBrush(237, 238, 255);
         public static readonly Brush Surface = ColorBrush(245, 247, 252);
@@ -400,7 +401,18 @@ namespace WordAss
 
         public void Reposition()
         {
-            if (!moved && IsVisible && Handle != IntPtr.Zero) Selection.PlacePopup(Handle, anchor);
+            if (moved || !IsVisible || Handle == IntPtr.Zero) return;
+            var prompt = Content as Button;
+            if (prompt == null)
+            {
+                Selection.PlacePopup(Handle, anchor);
+                return;
+            }
+
+            var source = PresentationSource.FromVisual(prompt);
+            if (source == null || prompt.ActualWidth == 0 || prompt.ActualHeight == 0) return;
+            var size = source.CompositionTarget.TransformToDevice.Transform(new Vector(prompt.ActualWidth, prompt.ActualHeight));
+            Selection.PlacePopup(Handle, anchor, new Size(size.X, size.Y));
         }
 
         public void Prompt(Action run)
@@ -410,10 +422,12 @@ namespace WordAss
             translate.HorizontalAlignment = HorizontalAlignment.Left;
             translate.VerticalAlignment = VerticalAlignment.Top;
             translate.Padding = new Thickness(8, 2, 8, 2);
-            translate.MinWidth = 44;
-            translate.MinHeight = 25;
-            translate.FontSize = 12;
-            translate.Foreground = Views.Muted;
+            translate.MinWidth = 46;
+            translate.MinHeight = 26;
+            translate.FontSize = 13;
+            translate.Background = Views.Tint;
+            translate.BorderBrush = Views.AccentLine;
+            translate.Foreground = Views.Accent;
             Content = translate;
         }
 

@@ -144,16 +144,20 @@ namespace WordAss
             return new Point(point.X, point.Y);
         }
 
-        public static void PlacePopup(IntPtr hwnd, Point point)
+        public static void PlacePopup(IntPtr hwnd, Point point, Size? promptSize = null)
         {
             NativeRect rect;
             if (!GetWindowRect(hwnd, out rect)) return;
             var area = Forms.Screen.FromPoint(new System.Drawing.Point((int)point.X, (int)point.Y)).WorkingArea;
-            int width = rect.Right - rect.Left;
-            int height = rect.Bottom - rect.Top;
-            int x = Math.Max(area.Left, Math.Min((int)point.X + 12, area.Right - width));
-            int y = (int)point.Y + 18;
-            if (y + height > area.Bottom) y = (int)point.Y - height - 12;
+            bool isPrompt = promptSize.HasValue;
+            int width = isPrompt ? (int)Math.Ceiling(promptSize.Value.Width) : rect.Right - rect.Left;
+            int height = isPrompt ? (int)Math.Ceiling(promptSize.Value.Height) : rect.Bottom - rect.Top;
+            int left = isPrompt ? (int)point.X - width / 2 : (int)point.X + 12;
+            int x = Math.Max(area.Left, Math.Min(left, area.Right - width));
+            int above = (int)point.Y - height - (isPrompt ? 8 : 12);
+            int below = (int)point.Y + 18;
+            bool placeAbove = isPrompt ? above >= area.Top : below + height > area.Bottom;
+            int y = placeAbove ? above : below;
             y = Math.Max(area.Top, Math.Min(y, area.Bottom - height));
             SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, 0x0015);
         }
