@@ -24,7 +24,7 @@ namespace WordAss
         private readonly ChatApi api;
         private readonly StartupRegistration startup;
         private readonly string dataDirectory;
-        private readonly SemaphoreSlim captureLock = new SemaphoreSlim(1);
+        private readonly SelectionReader selectionReader = new SelectionReader();
         private LocalStore store;
         private Selection selection;
         private Forms.NotifyIcon tray;
@@ -131,14 +131,8 @@ namespace WordAss
             int version = ++captureVersion;
             await Task.Delay(90);
             if (version != captureVersion) return;
-            await captureLock.WaitAsync();
-            try
-            {
-                if (version != captureVersion) return;
-                string text = await Task.Run(() => Selection.Read(start, window));
-                if (version == captureVersion && settings == null && !string.IsNullOrWhiteSpace(text)) ShowLookup(text, end);
-            }
-            finally { captureLock.Release(); }
+            string text = await selectionReader.ReadAsync(Selection.ProcessId(window), start, window);
+            if (version == captureVersion && settings == null && !string.IsNullOrWhiteSpace(text)) ShowLookup(text, end);
         }
 
         private void FromClipboard(Point point)

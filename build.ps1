@@ -10,7 +10,7 @@ $exe = Join-Path $OutputDirectory 'WordAss.exe'
 $references = @('PresentationCore', 'PresentationFramework', 'WindowsBase', 'UIAutomationClient', 'UIAutomationTypes', 'System.Speech') |
     ForEach-Object { '/reference:' + (Join-Path $framework "WPF\$_.dll") }
 $sources = Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | ForEach-Object FullName
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 "/out:$exe" `
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /define:TRACE /codepage:65001 "/out:$exe" `
     "/win32manifest:$PSScriptRoot\app.manifest" "/win32icon:$PSScriptRoot\assets\wordass.ico" `
     /reference:System.Xaml.dll /reference:System.Windows.Forms.dll `
     /reference:System.Drawing.dll /reference:System.Net.Http.dll /reference:System.Web.Extensions.dll `

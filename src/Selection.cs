@@ -1,10 +1,12 @@
 using System;
-using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 
 namespace WordAss
@@ -25,7 +27,10 @@ namespace WordAss
 
         private readonly HookProcedure procedure;
         private readonly HwndSource messages;
-        private readonly IntPtr hook;
+        private readonly Dispatcher uiDispatcher;
+        private readonly Thread hookThread;
+        private IntPtr hook;
+        private volatile bool disposed;
         private Point down;
         private Point previousClick;
         private uint previousClickTime;
@@ -40,52 +45,84 @@ namespace WordAss
         public Selection()
         {
             messages = new HwndSource(new HwndSourceParameters("WordAss messages") { ParentWindow = new IntPtr(-3) });
+            uiDispatcher = messages.Dispatcher;
             messages.AddHook(WindowMessage);
             if (RegisterHotKey(messages.Handle, HotKeyId, NoRepeat | Control | Alt, LetterD)) Shortcut = "Ctrl+Alt+D";
             else if (RegisterHotKey(messages.Handle, HotKeyId, NoRepeat | Control | Alt | Shift, LetterD)) Shortcut = "Ctrl+Alt+Shift+D";
             procedure = MouseMessage;
-            hook = SetWindowsHookEx(MouseHook, procedure, GetModuleHandle(null), 0);
-            if (hook == IntPtr.Zero)
+            hookThread = new Thread(Listen) { IsBackground = true, Name = "WordAss mouse listener" };
+            hookThread.Start();
+        }
+
+        private void Listen()
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            if (disposed) return;
+
+            // Windows can silently remove a timed-out low-level hook. Register a fresh one periodically.
+            var refresh = new DispatcherTimer(DispatcherPriority.Normal, dispatcher) { Interval = TimeSpan.FromSeconds(30) };
+            refresh.Tick += (sender, args) => RefreshHook();
+            RefreshHook();
+            refresh.Start();
+            try { Dispatcher.Run(); }
+            finally
             {
-                int error = Marshal.GetLastWin32Error();
-                Dispose();
-                throw new Win32Exception(error);
+                refresh.Stop();
+                if (hook != IntPtr.Zero) UnhookWindowsHookEx(hook);
             }
+        }
+
+        private void RefreshHook()
+        {
+            if (disposed) return;
+            IntPtr next = SetWindowsHookEx(MouseHook, procedure, GetModuleHandle(null), 0);
+            if (next == IntPtr.Zero)
+            {
+                Trace.TraceWarning("WordAss mouse hook registration failed (Win32 {0}).", Marshal.GetLastWin32Error());
+                return;
+            }
+            if (hook != IntPtr.Zero) UnhookWindowsHookEx(hook);
+            hook = next;
         }
 
         private IntPtr MouseMessage(int code, IntPtr message, IntPtr data)
         {
-            if (code >= 0 && (message.ToInt32() == LeftDown || message.ToInt32() == LeftUp))
+            if (!disposed && code == 0 && (message.ToInt32() == LeftDown || message.ToInt32() == LeftUp))
             {
                 var mouse = (MouseData)Marshal.PtrToStructure(data, typeof(MouseData));
-                var point = new Point(mouse.Position.X, mouse.Position.Y);
-                if (message.ToInt32() == LeftDown)
-                {
-                    down = point;
-                    origin = GetAncestor(WindowFromPoint(mouse.Position), Root);
-                    var pressed = MousePressed;
-                    if (pressed != null) messages.Dispatcher.BeginInvoke(pressed, point);
-                }
-                else if (origin != IntPtr.Zero)
-                {
-                    bool drag = Math.Abs(point.X - down.X) >= Math.Max(5, GetSystemMetrics(68)) ||
-                        Math.Abs(point.Y - down.Y) >= Math.Max(5, GetSystemMetrics(69));
-                    bool doubleClick = !drag && origin == previousClickWindow &&
-                        unchecked(mouse.Time - previousClickTime) <= GetDoubleClickTime() &&
-                        Math.Abs(point.X - previousClick.X) <= GetSystemMetrics(36) &&
-                        Math.Abs(point.Y - previousClick.Y) <= GetSystemMetrics(37);
-                    if (drag || doubleClick)
-                    {
-                        var selected = Selected;
-                        if (selected != null) messages.Dispatcher.BeginInvoke(selected, down, point, origin);
-                    }
-                    previousClick = point;
-                    previousClickTime = mouse.Time;
-                    previousClickWindow = drag || doubleClick ? IntPtr.Zero : origin;
-                    origin = IntPtr.Zero;
-                }
+                uiDispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() => ProcessMouse(message, mouse)));
             }
-            return CallNextHookEx(hook, code, message, data);
+            return CallNextHookEx(IntPtr.Zero, code, message, data);
+        }
+
+        private void ProcessMouse(IntPtr message, MouseData mouse)
+        {
+            if (disposed) return;
+            var point = new Point(mouse.Position.X, mouse.Position.Y);
+            if (message.ToInt32() == LeftDown)
+            {
+                down = point;
+                origin = GetAncestor(WindowFromPoint(mouse.Position), Root);
+                var pressed = MousePressed;
+                if (pressed != null) pressed(point);
+                return;
+            }
+            if (origin == IntPtr.Zero) return;
+
+            IntPtr window = origin;
+            origin = IntPtr.Zero;
+            bool drag = Math.Abs(point.X - down.X) >= Math.Max(5, GetSystemMetrics(68)) ||
+                Math.Abs(point.Y - down.Y) >= Math.Max(5, GetSystemMetrics(69));
+            bool doubleClick = !drag && window == previousClickWindow &&
+                unchecked(mouse.Time - previousClickTime) <= GetDoubleClickTime() &&
+                Math.Abs(point.X - previousClick.X) <= GetSystemMetrics(36) &&
+                Math.Abs(point.Y - previousClick.Y) <= GetSystemMetrics(37);
+            previousClick = point;
+            previousClickTime = mouse.Time;
+            previousClickWindow = drag || doubleClick ? IntPtr.Zero : window;
+
+            var selected = Selected;
+            if ((drag || doubleClick) && selected != null) selected(down, point, window);
         }
 
         private IntPtr WindowMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -127,6 +164,13 @@ namespace WordAss
             catch (COMException) { return null; }
         }
 
+        public static uint ProcessId(IntPtr window)
+        {
+            uint id;
+            GetWindowThreadProcessId(window, out id);
+            return id;
+        }
+
         private static string ReadText(AutomationElement element)
         {
             object pattern;
@@ -164,7 +208,10 @@ namespace WordAss
 
         public void Dispose()
         {
-            if (hook != IntPtr.Zero) UnhookWindowsHookEx(hook);
+            if (disposed) return;
+            disposed = true;
+            var dispatcher = Dispatcher.FromThread(hookThread);
+            if (dispatcher != null) dispatcher.BeginInvokeShutdown(DispatcherPriority.Send);
             if (Shortcut != null) UnregisterHotKey(messages.Handle, HotKeyId);
             messages.Dispose();
         }
@@ -192,6 +239,7 @@ namespace WordAss
         [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativePoint point);
         [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
         [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
         [DllImport("user32.dll")] private static extern uint GetDoubleClickTime();
         [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
         [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint key);
