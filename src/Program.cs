@@ -131,7 +131,7 @@ namespace WordAss
             int version = ++captureVersion;
             await Task.Delay(90);
             if (version != captureVersion) return;
-            string text = await selectionReader.ReadAsync(Selection.ProcessId(window), start, window);
+            string text = await selectionReader.ReadAsync(Selection.ProcessId(window), start, end, window);
             if (version == captureVersion && settings == null && !string.IsNullOrWhiteSpace(text)) ShowLookup(text, end);
         }
 

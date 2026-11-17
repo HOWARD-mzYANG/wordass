@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -12,9 +13,16 @@ namespace WordAss
         private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(2);
         private readonly HashSet<uint> reading = new HashSet<uint>();
 
-        public Task<string> ReadAsync(uint processId, Point start, IntPtr window)
+        public Task<string> ReadAsync(uint processId, Point start, Point end, IntPtr window)
         {
-            return ReadAsync(processId, () => Selection.Read(start, window), ReadTimeout);
+            return ReadAsync(processId, () =>
+            {
+                string text = Selection.Read(start, end, window);
+                if (!string.IsNullOrWhiteSpace(text)) return text;
+                // Some providers publish their final selection after the mouse-up event.
+                Thread.Sleep(120);
+                return Selection.Read(start, end, window);
+            }, ReadTimeout);
         }
 
         internal async Task<string> ReadAsync(uint processId, Func<string> read, TimeSpan timeout)

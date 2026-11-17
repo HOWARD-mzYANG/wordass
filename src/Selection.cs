@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -136,32 +137,82 @@ namespace WordAss
             return IntPtr.Zero;
         }
 
-        public static string Read(Point start, IntPtr window)
+        public static string Read(Point start, Point end, IntPtr window)
         {
+            if (window != GetForegroundWindow()) return null;
+            var visited = new HashSet<AutomationElement>();
             try
             {
-                if (window != GetForegroundWindow()) return null;
                 var focused = AutomationElement.FocusedElement;
                 if (focused != null && focused.Current.IsPassword) return null;
+            }
+            catch (ElementNotAvailableException) { }
+            catch (InvalidOperationException) { }
+            catch (COMException) { }
+            catch (UnauthorizedAccessException) { }
 
-                var hit = AutomationElement.FromPoint(start);
-                int processId = hit == null ? 0 : hit.Current.ProcessId;
-                for (var element = hit; element != null; element = TreeWalker.RawViewWalker.GetParent(element))
+            // Visit the same physical points for either drag direction, including text beside a boundary.
+            foreach (var point in ProbePoints(start, end))
+            {
+                try
                 {
-                    if (element.Current.IsPassword || element.Current.ProcessId != processId) break;
-                    string value = ReadText(element);
-                    if (value != null) return GetForegroundWindow() == window ? value : null;
-                    if (element.Current.NativeWindowHandle == window.ToInt32()) break;
+                    string value = ReadAncestors(AutomationElement.FromPoint(point), window, visited);
+                    if (value != null) return window == GetForegroundWindow() ? value : null;
                 }
+                catch (ElementNotAvailableException) { }
+                catch (InvalidOperationException) { }
+                catch (COMException) { }
+                catch (UnauthorizedAccessException) { }
+                if (window != GetForegroundWindow()) return null;
+            }
 
-                if (focused == null || focused.Current.ProcessId != processId || GetForegroundWindow() != window)
-                    return null;
-                string focusedText = ReadText(focused);
-                return GetForegroundWindow() == window ? focusedText : null;
+            try
+            {
+                string value = ReadAncestors(AutomationElement.FocusedElement, window, visited);
+                return window == GetForegroundWindow() ? value : null;
             }
             catch (ElementNotAvailableException) { return null; }
             catch (InvalidOperationException) { return null; }
             catch (COMException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
+        }
+
+        internal static Point[] ProbePoints(Point start, Point end)
+        {
+            var first = start.Y < end.Y || (start.Y == end.Y && start.X <= end.X) ? start : end;
+            var last = first == start ? end : start;
+            return new[] { first, last, new Point((first.X + last.X) / 2, (first.Y + last.Y) / 2) };
+        }
+
+        private static string ReadAncestors(AutomationElement element, IntPtr window, HashSet<AutomationElement> visited)
+        {
+            var ancestors = new List<AutomationElement>();
+            bool inWindow = false;
+            for (int depth = 0; element != null && depth < 32; depth++)
+            {
+                if (element.Current.IsPassword) return null;
+                var handle = new IntPtr(element.Current.NativeWindowHandle);
+                if (handle != IntPtr.Zero && GetAncestor(handle, Root) != window) return null;
+                ancestors.Add(element);
+                if (handle == window) { inWindow = true; break; }
+                element = TreeWalker.RawViewWalker.GetParent(element);
+            }
+            if (!inWindow) return null;
+
+            foreach (var candidate in ancestors)
+            {
+                if (!visited.Add(candidate)) continue;
+                try
+                {
+                    string text = ReadText(candidate);
+                    if (text != null) return text;
+                }
+                catch (ElementNotAvailableException) { }
+                catch (InvalidOperationException) { }
+                catch (COMException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            return null;
         }
 
         public static uint ProcessId(IntPtr window)
