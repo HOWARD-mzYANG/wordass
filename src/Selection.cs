@@ -145,6 +145,8 @@ namespace WordAss
             {
                 var focused = AutomationElement.FocusedElement;
                 if (focused != null && focused.Current.IsPassword) return null;
+                string text = ReadAncestors(focused, window, visited);
+                if (text != null) return window == GetForegroundWindow() ? text : null;
             }
             catch (ElementNotAvailableException) { }
             catch (InvalidOperationException) { }
@@ -166,15 +168,7 @@ namespace WordAss
                 if (window != GetForegroundWindow()) return null;
             }
 
-            try
-            {
-                string value = ReadAncestors(AutomationElement.FocusedElement, window, visited);
-                return window == GetForegroundWindow() ? value : null;
-            }
-            catch (ElementNotAvailableException) { return null; }
-            catch (InvalidOperationException) { return null; }
-            catch (COMException) { return null; }
-            catch (UnauthorizedAccessException) { return null; }
+            return null;
         }
 
         internal static Point[] ProbePoints(Point start, Point end)
@@ -186,31 +180,35 @@ namespace WordAss
 
         private static string ReadAncestors(AutomationElement element, IntPtr window, HashSet<AutomationElement> visited)
         {
-            var ancestors = new List<AutomationElement>();
+            var pending = new List<AutomationElement>();
             bool inWindow = false;
-            for (int depth = 0; element != null && depth < 32; depth++)
+            while (element != null)
             {
                 if (element.Current.IsPassword) return null;
                 var handle = new IntPtr(element.Current.NativeWindowHandle);
                 if (handle != IntPtr.Zero && GetAncestor(handle, Root) != window) return null;
-                ancestors.Add(element);
-                if (handle == window) { inWindow = true; break; }
-                element = TreeWalker.RawViewWalker.GetParent(element);
-            }
-            if (!inWindow) return null;
-
-            foreach (var candidate in ancestors)
-            {
-                if (!visited.Add(candidate)) continue;
-                try
+                pending.Add(element);
+                // A native child window also proves the elements beneath it belong to the source window.
+                inWindow = inWindow || handle != IntPtr.Zero;
+                if (inWindow)
                 {
-                    string text = ReadText(candidate);
-                    if (text != null) return text;
+                    foreach (var candidate in pending)
+                    {
+                        if (!visited.Add(candidate)) continue;
+                        try
+                        {
+                            string text = ReadText(candidate);
+                            if (text != null) return text;
+                        }
+                        catch (ElementNotAvailableException) { }
+                        catch (InvalidOperationException) { }
+                        catch (COMException) { }
+                        catch (UnauthorizedAccessException) { }
+                    }
+                    pending.Clear();
                 }
-                catch (ElementNotAvailableException) { }
-                catch (InvalidOperationException) { }
-                catch (COMException) { }
-                catch (UnauthorizedAccessException) { }
+                if (handle == window) break;
+                element = TreeWalker.RawViewWalker.GetParent(element);
             }
             return null;
         }
@@ -228,7 +226,7 @@ namespace WordAss
             if (!element.TryGetCurrentPattern(TextPattern.Pattern, out pattern)) return null;
             var ranges = ((TextPattern)pattern).GetSelection();
             if (ranges == null) return null;
-            string text = string.Join("\n", ranges.Select(range => range.GetText(ChatApi.SelectionLimit + 1))).Trim();
+            string text = string.Join("\n", ranges.Select(range => range.GetText(-1))).Trim();
             return text.Length == 0 ? null : text;
         }
 

@@ -162,10 +162,7 @@ namespace WordAss
             };
             window.PinChanged += UpdatePin;
             transientLookup = window;
-            if (text.Length > ChatApi.SelectionLimit)
-                window.Status("最多支持 6,000 个字符，请缩短选区后重试。");
-            else
-                window.Prompt(() => QueryAsync(window, text, token));
+            window.Prompt(() => QueryAsync(window, text, token));
             window.Show();
             window.Reposition();
         }

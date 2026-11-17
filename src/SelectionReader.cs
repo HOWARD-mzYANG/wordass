@@ -10,7 +10,7 @@ namespace WordAss
     internal sealed class SelectionReader
     {
         private const int MaxConcurrentReads = 4;
-        private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(8);
         private readonly HashSet<uint> reading = new HashSet<uint>();
 
         public Task<string> ReadAsync(uint processId, Point start, Point end, IntPtr window)
